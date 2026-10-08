@@ -1,0 +1,436 @@
+{
+  "name": "Auto Up Shopee Aff",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "shopee",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "0a84b9fd-add7-4ec7-a40e-c6f42b306566",
+      "name": "Webhook",
+      "webhookId": "126e96d3-d476-43af-bdb1-56e950ca81c2"
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "0e31c6ec-5b96-4bba-ab3b-f3c288caabd4",
+              "name": "product_url",
+              "value": "={{ $json.body.url }}",
+              "type": "string"
+            },
+            {
+              "id": "bcb15ccd-63b0-4f21-932e-4c0535112c69",
+              "name": "item_id",
+              "value": "={{ $json.body.url.match(/i\\.(\\d+)\\.(\\d+)/)?.[2] }}",
+              "type": "string"
+            },
+            {
+              "id": "f32c7058-51bb-4fe5-a6f7-6990d4462778",
+              "name": "shop_id",
+              "value": "={{ $json.body.url.match(/i\\.(\\d+)\\.(\\d+)/)?.[1] }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.5,
+      "position": [
+        224,
+        0
+      ],
+      "id": "56abd0b0-f5ae-45e6-b49b-00b43fba2f7b",
+      "name": "Edit Fields"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/scrape",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "url",
+              "value": "={{ $json.product_url }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        448,
+        0
+      ],
+      "id": "156ffe91-2b74-4ba6-bc08-d417ff2633b3",
+      "name": "HTTP Request1"
+    },
+    {
+      "parameters": {
+        "jsCode": "const imageId = $json.image;\n\nlet imageUrl = null;\n\nif (imageId) {\n  imageUrl = `https://down-vn.img.susercontent.com/file/${imageId}`;\n}\n\nreturn [{\n  json: {\n    ...$json,\n    image_url: imageUrl\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        848,
+        -176
+      ],
+      "id": "a20c15c6-0d2c-47eb-ae8d-c8d05655dcae",
+      "name": "Image"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "INSERT INTO products (\n    product_url,\n    shop_id,\n    item_id,\n    product_name,\n    price,\n    original_price,\n    rating,\n    image_url,\n    description,\n    currency,\n    shop_location,\n    brand,\n    category_id,\n    attributes,\n    variants,\n    status\n)\nVALUES (\n    $1,\n    $2,\n    $3,\n    $4,\n    $5,\n    $6,\n    $7,\n    $8,\n    $9,\n    $10,\n    $11,\n    $12,\n    $13,\n    $14::jsonb,\n    $15::jsonb,\n    'pending'\n);",
+        "options": {
+          "queryReplacement": "={{\n[\n  $json.product_url,\n  $json.shop_id,\n  $json.item_id,\n  $json.product_name,\n  $json.price,\n  $json.original_price,\n  $json.rating,\n  $json.image_url,\n  $json.description,\n  $json.currency,\n  $json.shop_location,\n  $json.brand,\n  $json.category_id,\n  JSON.stringify($json.attributes),\n  JSON.stringify($json.variants)\n]\n}}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1072,
+        -176
+      ],
+      "id": "531462ca-8100-45f3-a6ee-05fd2ea02ff4",
+      "name": "Execute a SQL query",
+      "credentials": {
+        "postgres": {
+          "id": "cBVNZ0hn53dr9Sa7",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:3000/affiliate-link",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"url\": \"{{ $json.product_url }}\"\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        1072,
+        32
+      ],
+      "id": "da46ecc4-b0b4-4885-b640-90a89e45cb9d",
+      "name": "Request Aff link"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products\nSET\n    affiliate_url = $1,\n    updated_at = CURRENT_TIMESTAMP\nWHERE product_url = $2;",
+        "options": {
+          "queryReplacement": "={{ [   $json.affiliate_url,   $json.product_url ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1392,
+        -224
+      ],
+      "id": "d16aa025-dde1-4d98-a87a-740f69fb5bd9",
+      "name": "Execute a SQL query1",
+      "credentials": {
+        "postgres": {
+          "id": "cBVNZ0hn53dr9Sa7",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const product = $('Parse Product').first().json;\nconst affiliate = $('Request Aff link').first().json;\n\nreturn [{\n  json: {\n    product_name: product.product_name,\n    price: product.price,\n    original_price: product.original_price,\n    currency: product.currency,\n    rating: product.rating,\n    description: product.description,\n    attributes: product.attributes,\n    variants: product.variants,\n    affiliate_url: affiliate.affiliate_url\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1296,
+        32
+      ],
+      "id": "c2cb1f15-b28a-49b0-93c0-607f2b5460d1",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $json.data?.data;\n\nif (!response) {\n  throw new Error('Không tìm thấy data.data trong response Shopee');\n}\n\nconst item = response.item;\n\nif (!item) {\n  throw new Error('Không tìm thấy item trong response Shopee');\n}\n\n// Lấy các model có giá\nconst models = Array.isArray(item.models) ? item.models : [];\n\nconst prices = models\n  .map(m => Number(m.price))\n  .filter(p => Number.isFinite(p) && p > 0);\n\nconst originalPrices = models\n  .map(m => Number(m.price_before_discount))\n  .filter(p => Number.isFinite(p) && p > 0);\n\n// Giá nhỏ nhất\nconst minPrice = prices.length\n  ? Math.min(...prices) / 100000\n  : null;\n\nconst minOriginalPrice = originalPrices.length\n  ? Math.min(...originalPrices) / 100000\n  : null;\n\n// Danh sách biến thể\nconst variants = models.map(m => ({\n  name: m.name ?? null,\n  price: Number.isFinite(Number(m.price))\n    ? Number(m.price) / 100000\n    : null,\n  original_price: Number.isFinite(Number(m.price_before_discount))\n    ? Number(m.price_before_discount) / 100000\n    : null,\n  model_id: m.model_id ?? null,\n  stock: m.stock ?? null,\n  sold: m.sold ?? null,\n}));\n\nreturn [{\n  json: {\n    product_url: $('Edit Fields').first().json.product_url,\n\n    shop_id: String(item.shop_id),\n    item_id: String(item.item_id),\n\n    product_name: item.title ?? null,\n\n    price: minPrice,\n    original_price: minOriginalPrice,\n\n    rating: item.item_rating?.rating_star ?? null,\n\n    currency: item.currency ?? 'VND',\n\n    image: item.image ?? null,\n\n    shop_location: item.shop_location ?? null,\n\n    brand: item.brand ?? null,\n\n    category_id: item.cat_id ?? null,\n\n    description: item.description ?? null,\n\n    attributes: item.attributes ?? [],\n\n    variants,\n\n    variant_count: variants.length,\n\n    status: item.item_status ?? null\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        -176
+      ],
+      "id": "19a86ffa-4b4b-42ee-bd95-c5af1f43e805",
+      "name": "Parse Product"
+    },
+    {
+      "parameters": {
+        "modelId": {
+          "__rl": true,
+          "mode": "list",
+          "value": "models/gemini-3-flash-preview"
+        },
+        "messages": {
+          "values": [
+            {
+              "content": "=Bạn là một content creator chuyên viết nội dung giới thiệu sản phẩm trên Facebook.\n\nHãy viết một bài content bán hàng dựa CHỈ trên dữ liệu sản phẩm được cung cấp.\n\nYÊU CẦU:\n- Viết bằng tiếng Việt.\n- Văn phong tự nhiên, giống người thật chia sẻ sản phẩm.\n- Ngắn gọn, dễ đọc trên Facebook.\n- Có emoji vừa phải.\n- Không bịa thêm thông tin, thông số hoặc công dụng không có trong dữ liệu.\n- Không nói quá hoặc cam kết quá mức.\n- Không nhắc đến AI.\n- Không dùng tiêu đề kiểu \"Bài viết Facebook:\".\n- Không dùng Markdown heading.\n- Không đưa giá gốc nếu giá gốc không hợp lệ hoặc bằng 0.\n- Cuối bài phải có lời kêu gọi hành động.\n- Cuối cùng đặt đúng Affiliate Link được cung cấp.\n- Không thay đổi Affiliate Link.\n\nCẤU TRÚC:\n1. Câu mở đầu thu hút.\n2. Giới thiệu sản phẩm.\n3. 3-5 điểm nổi bật.\n4. Giá bán.\n5. CTA.\n6. Affiliate Link.\n\n--------------------\nDỮ LIỆU SẢN PHẨM\n--------------------\n\nTên sản phẩm:\n{{ $json.product_name }}\n\nGiá bán:\n{{ $json.price }} {{ $json.currency }}\n\nGiá gốc:\n{{ $json.original_price }} {{ $json.currency }}\n\nĐánh giá:\n{{ $json.rating }}\n\nMô tả:\n{{ $json.description }}\n\nThuộc tính:\n{{ JSON.stringify($json.attributes) }}\n\nCác phiên bản:\n{{ JSON.stringify($json.variants) }}\n\nAffiliate Link:\n{{ $json.affiliate_url }}"
+            }
+          ]
+        },
+        "builtInTools": {},
+        "options": {}
+      },
+      "type": "@n8n/n8n-nodes-langchain.googleGemini",
+      "typeVersion": 1.2,
+      "position": [
+        1488,
+        -64
+      ],
+      "id": "774f7285-06c0-4a92-beb9-0eceaf156f70",
+      "name": "Content",
+      "credentials": {
+        "googlePalmApi": {
+          "id": "nMQUqq1ZYwGpayq8",
+          "name": "Google Gemini(PaLM) Api account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products\nSET\n    content = $1,\n    content_status = 'generated',\n    updated_at = CURRENT_TIMESTAMP\nWHERE product_url = $2;",
+        "options": {
+          "queryReplacement": "={{ [   $json.content.parts[0].text,   $('Request Aff link').first().json.product_url ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        1856,
+        -64
+      ],
+      "id": "79f41592-1df5-4537-a5f6-8eb30e46d890",
+      "name": "Execute a SQL query2",
+      "credentials": {
+        "postgres": {
+          "id": "cBVNZ0hn53dr9Sa7",
+          "name": "Postgres account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://graph.facebook.com/v26.0/199583709914925/feed",
+        "sendBody": true,
+        "contentType": "form-urlencoded",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "message",
+              "value": "={{ $('Content').first().json.content.parts[0].text }}"
+            },
+            {
+              "name": "access_token",
+              "value": ""
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.5,
+      "position": [
+        2080,
+        -64
+      ],
+      "id": "5e65bee2-7a21-4eb4-9bc7-60f11bc83ed1",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "UPDATE products\nSET\n    content_status = 'published',\n    published_at = CURRENT_TIMESTAMP,\n    updated_at = CURRENT_TIMESTAMP\nWHERE product_url = $1;",
+        "options": {
+          "queryReplacement": "={{ [   $('Edit Fields').first().json.product_url ] }}"
+        }
+      },
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.7,
+      "position": [
+        2304,
+        -64
+      ],
+      "id": "08202dec-51c0-42c8-9ce2-fb7a5dcc61dc",
+      "name": "Execute a SQL query3",
+      "credentials": {
+        "postgres": {
+          "id": "cBVNZ0hn53dr9Sa7",
+          "name": "Postgres account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Edit Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Edit Fields": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request1": {
+      "main": [
+        [
+          {
+            "node": "Parse Product",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Image": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Request Aff link",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query": {
+      "main": [
+        []
+      ]
+    },
+    "Request Aff link": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Execute a SQL query1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query1": {
+      "main": [
+        []
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Content",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Product": {
+      "main": [
+        [
+          {
+            "node": "Image",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Content": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query2",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Execute a SQL query2": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Execute a SQL query3",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "2c4000a5-993d-4abc-9cb8-7b3637b7ca1d",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "eacc6d3ad1ab53ba781093dc0fb53ee1af0ece0ff6971cd1aae465e44795bc84"
+  },
+  "nodeGroups": [],
+  "id": "4GBdrnlFYo2BzXok",
+  "tags": []
+}
